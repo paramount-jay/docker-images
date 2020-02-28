@@ -1,0 +1,68 @@
+version: "2.4"
+
+services:
+
+  sql:
+    hostname: sql
+    image: ${REGISTRY}sitecore-xp-sqldev:${SITECORE_VERSION}-windowsservercore-${WINDOWSSERVERCORE_VERSION}
+    volumes:
+      - .\data\sql:C:\Data
+    mem_limit: 2GB
+    ports:
+      - "44010:1433"
+
+  solr:
+    hostname: solr
+    image: ${REGISTRY}sitecore-xp-solr:${SITECORE_VERSION}-nanoserver-${NANOSERVER_VERSION}
+    volumes:
+      - .\data\solr:C:\Data
+    mem_limit: 1GB
+    ports:
+      - "44011:8983"
+
+  xconnect:
+    hostname: xconnect
+    image: ${REGISTRY}sitecore-xp-xconnect:${SITECORE_VERSION}-windowsservercore-${WINDOWSSERVERCORE_VERSION}
+    volumes:
+      - ${LICENSE_PATH}:C:\license
+      - .\data\xconnect:C:\inetpub\wwwroot\App_Data\logs
+    mem_limit: 1GB
+    ports:
+      - "44012:443"
+    depends_on:
+      sql:
+        condition: service_healthy
+      solr:
+        condition: service_started
+
+  xconnect-automationengine:
+    hostname: xconnect-automationengine
+    image: ${REGISTRY}sitecore-xp-xconnect-automationengine:${SITECORE_VERSION}-windowsservercore-${WINDOWSSERVERCORE_VERSION}
+    volumes:
+      - ${LICENSE_PATH}:C:\license
+      - .\data\xconnect-automationengine:C:\AutomationEngine\App_Data\logs
+    mem_limit: 500MB
+    depends_on:
+      sql:
+        condition: service_healthy
+      xconnect:
+        condition: service_started
+
+  xconnect-indexworker:
+    hostname: xconnect-indexworker
+    image: ${REGISTRY}sitecore-xp-xconnect-indexworker:${SITECORE_VERSION}-windowsservercore-${WINDOWSSERVERCORE_VERSION}
+    volumes:
+      - ${LICENSE_PATH}:C:\license
+      - .\data\xconnect-indexworker:C:\IndexWorker\App_Data\logs
+    mem_limit: 500MB
+    depends_on:
+      sql:
+        condition: service_healthy
+      xconnect:
+        condition: service_started
+
+  certificates:
+    image: ${REGISTRY}sitecore-certificates:latest-nanoserver-${NANOSERVER_VERSION}
+    entrypoint: cmd
+    volumes:
+      - .\data\certificates:C:\certificates

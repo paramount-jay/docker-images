@@ -1,3 +1,9 @@
+[CmdletBinding()]
+param(
+    [Parameter(Mandatory = $false)]
+    [hashtable]$WatchDirectoryParameters
+)
+
 # setup
 $ErrorActionPreference = "STOP"
 
@@ -50,7 +56,7 @@ function Wait-WebItemState
 }
 
 # print start message
-Write-Host ("### Sitecore Production ENTRYPOINT, starting...")
+Write-Host ("### Commerce Engine Development ENTRYPOINT, starting...")
 
 # wait for w3wp to stop
 while ($true)
@@ -78,11 +84,72 @@ while ($true)
 # wait for application pool to stop
 Wait-WebItemState -IISPath "IIS:\AppPools\DefaultAppPool" -State "Stopped"
 
-# inject Sitecore config files
-Copy-Item -Path (Join-Path $PSScriptRoot "\*.config") -Destination "C:\inetpub\wwwroot\App_Config\Include"
+# check to see if we should start the msvsmon.exe
+$useVsDebugger = (Test-Path -Path "C:\remote_debugger\x64\msvsmon.exe" -PathType "Leaf") -eq $true
+
+if ($useVsDebugger)
+{
+    # start msvsmon.exe in background
+    & "C:\remote_debugger\x64\msvsmon.exe" /noauth /anyuser /silent /nostatus /noclrwarn /nosecuritywarn /nofirewallwarn /nowowwarn /timeout:2147483646
+
+    Write-Host ("### Started 'msvsmon.exe'.")
+}
+else
+{
+    Write-Host ("### Skipping start of 'msvsmon.exe', to enable you should mount the Visual Studio Remote Debugger directory into 'C:\remote_debugger'.")
+}
+
+# check to see if we should start the Watch-Directory.ps1 script
+$watchDirectoryJobName = "Watch-Directory.ps1"
+$useWatchDirectory = (Test-Path -Path "C:\src" -PathType "Container") -eq $true
+
+if ($useWatchDirectory)
+{
+    # setup default parameters if none is supplied
+    if ($null -eq $WatchDirectoryParameters)
+    {
+        $WatchDirectoryParameters = @{ Path = "C:\src"; Destination = "C:\inetpub\wwwroot"; }
+    }
+
+    # start Watch-Directory.ps1 in background, kill foreground process if it fails
+    Start-Job -Name $watchDirectoryJobName -ArgumentList $WatchDirectoryParameters -ScriptBlock {
+        param([hashtable]$params)
+
+        try
+        {
+            & "C:\tools\scripts\Watch-Directory.ps1" @params
+        }
+        finally
+        {
+            Get-Process -Name "filebeat" | Stop-Process -Force
+        }
+    } | Out-Null
+
+    # wait to see if job have failed (it will if for example parsing in invalid parameters)...
+    Start-Sleep -Milliseconds 1000
+
+    Get-Job -Name $watchDirectoryJobName | ForEach-Object {
+        $job = $_
+
+        if ($job.State -ne "Running")
+        {
+            # writes output stream
+            Receive-Job $job
+
+            # exit
+            exit 1
+        }
+
+        Write-Host "### Job '$($job.Name)' started..."
+    }
+}
+else
+{
+    Write-Host ("### Skipping start of '$watchDirectoryJobName', to enable you should mount a directory into 'C:\src'.")
+}
 
 # start ServiceMonitor.exe in background, kill foreground process if it fails
-Start-Job -Name "ServiceMonitor.exe" {
+Start-Job -Name "ServiceMonitor.exe" -ScriptBlock {
     try
     {
         & "C:\ServiceMonitor.exe" "w3svc"
@@ -116,7 +183,7 @@ while ($true)
 Wait-WebItemState -IISPath "IIS:\AppPools\DefaultAppPool" -State "Started"
 
 # print ready message
-Write-Host ("### Sitecore ready!")
+Write-Host ("### Commerce Engine ready!")
 
 # start filebeat.exe in foreground
 & "C:\tools\bin\filebeat\filebeat.exe" -c (Join-Path $PSScriptRoot "\filebeat.yml")

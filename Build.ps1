@@ -6,12 +6,12 @@ param(
     [Parameter()]
     [ValidateNotNullOrEmpty()]
     [string]$InstallSourcePath,
-    [Parameter(Mandatory = $true)]
+    [Parameter(Mandatory = $false)]
     [ValidateNotNullOrEmpty()]
-    [string]$SitecoreUsername,
-    [Parameter(Mandatory = $true)]
+    [string]$SitecoreUsername = "jeremy.coste@delaware.pro",
+    [Parameter(Mandatory = $false)]
     [ValidateNotNullOrEmpty()]
-    [string]$SitecorePassword,
+    [string]$SitecorePassword = "iPjnsn8Zp2n2UeN",
     [Parameter()]
     [string]$Registry = "",
     [Parameter()]
@@ -20,10 +20,10 @@ param(
     [string]$RegistryPassword = "",
     [Parameter()]
     [ValidateSet("9.3.0", "9.2.0", "9.1.1", "9.0.2")]
-    [string[]]$SitecoreVersion = @("9.3.0"),
+    [string[]]$SitecoreVersion = @("9.0.2"),
     [ValidateSet("xm", "xp", "xc")]
-    [string[]]$Topology = @("xm", "xp"),
-    [ValidateSet("1909", "1903", "ltsc2019")]
+    [string[]]$Topology = @("xp"),
+    [ValidateSet("1909", "1903", "ltsc2019", "ltsc2016")]
     [string[]]$WindowsVersion = @("ltsc2019"),
     [Parameter()]
     [switch]$IncludeSpe,
@@ -32,7 +32,7 @@ param(
     [Parameter()]
     [switch]$IncludeJss,
     [Parameter(HelpMessage = "If the docker image is already built it should be skipped.")]
-    [switch]$SkipExistingImage,
+    [switch]$SkipExistingImage = $true,
     [Parameter()]
     [switch]$IncludeExperimental
 )
@@ -65,6 +65,7 @@ $windowsVersionMapping = @{
     "1909"     = "1909"
     "1903"     = "1903"
     "ltsc2019" = "1809"
+    "ltsc2016" = "1809"
 }
 
 filter WindowsFilter
